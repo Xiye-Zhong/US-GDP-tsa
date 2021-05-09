@@ -1,0 +1,125 @@
+---
+title: "The Statistical Analysis of U.S. Quarterly GDP Growth Rate"
+author: "Xiye Zhong"
+date: "2021/5/9"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(astsa)
+library(tidyverse)
+```
+
+Abstract
+
+
+In this project, we analyze the quarterly GDP growth rate of U.S. and there are two candidate models proposed. After testing their significance and diagnostics, an ARIMA(0,1,2) model is selected to predict the future 10 quarters with 95% confidence interval. Through spectrum analysis, the first three predominant periods and the upper and lower bounds are also calculated.
+
+
+Introduction
+
+
+U.S. as the world’s largest economy plays a significant role in worldwide economic activity. Investigating GDP of U.S. can appeal the potential model of its growth rate and help people to predict the future economy. In this project, the analysis of quarterly U.S. GDP would be considered. The data starts at 1947(1) and ends at 2018(3); it has n = 287 observations. Figure 1 shows a plot of data, $$y_t$$, but it has a strong trend and the sample ACF plot also shows a slow decay which indicates that log transformation and differencing may be needed.
+
+
+```{r}
+data("gdp")
+gdp
+```
+
+```{r}
+plot.ts(gdp)
+acf2(gdp)
+```
+
+```{r}
+gdpgr = diff(log(gdp))
+plot.ts(gdpgr)
+acf2(gdpgr)
+```
+
+Hence, in Figure 2, we plotted $$x_t=\nabla\left(log\left(y_t\right)\right)$$. It means the growth rate of U.S. GDP. The plot shows a more stable process. The sample ACF and PACF plots are also quickly decayed.
+
+
+Since a stable process has been found. In this project, we are going to inspect the sample ACF and PACF plot to propose some candidate models for U.S. GDP growth rate. Then, those candidate models would be fitted and tested. Finally, we would find a better model from candidates to predict the future and do a spectral analysis of it.
+
+
+Statistical Methods
+
+
+From the sample ACF and PACF plots in Figure 2, we may feel the ACF cuts off at lag 2 and PACF tails off. It would suggest log GDP follows an ARIMA(0, 1, 2) model. Also, it appears that the ACF tails off at lag 1 and PACF cuts off at lag 1. An ARIMA(1, 1, 0) model would also be considered for log GDP.
+We would fit those two models in RStudio. We would use MLE to estimate the model for growth rate. Then diagnostics would be considered. The first one is standardized residuals, if the model fits well the residual would behave as an iid sequence with mean zero and variance one. The second one is checking the normality by normal Q-Q plot. If there is a departure from normality then the data does not meet the normal assumption. The third one is the ACF of residuals. The sample autocorrelations are almost independently and normally distributed with mean zero and variance 1/n. If the  $$\hat{\rho}\left(h\right)$$ is along with the bounds of $$\pm2/\sqrt{\left(n\right)}$$, then the model fits well. The last one is Ljung-Box plot. It is to check for any H > 1, whether $$\rho\left(1\right)=\ldots=\rho\left(H\right)=0$$. If the plots are departure from 0.05, the model fits well. Moreover, we would compare the AIC, the AICc and the BIC. The smaller they are, the better the model fits.
+
+
+Results
+
+```{r}
+#fit the ARIMA(1,1,0) model
+sarima(diff(log(gdp)),1,0,0)
+```
+
+The estimated ARIMA(1,1,0) model is:
+$$x_t={0.0077}_{\left(0.0008\right)}(1-0.3603)+{0.3603}_{\left(0.0551\right)}x_{t-1}+w_t$$,
+Where $$\sigma_w^2 = 7.599e-05$$ on 284 degrees of freedom; the constant is 0.0049. All coefficients’ p-value are less than 0.05 which indicates that both ar1 and constant are significant.
+
+
+```{r}
+#fit the ARIMA(0,0,2) model
+sarima(diff(log(gdp)),0,0,2)
+```
+
+The estimated ARIMA(0,1,2) model is:
+$$x_t={0.0077}_{\left(0.0008\right)}+w_t+{0.307}_{\left(0.0579\right)}w_{t-1}+{0.2258}_{\left(0.0547\right)}w_{t-2}$$,
+Where $$\sigma_w^2 = 7.465e-05$$ on 283 degrees of freedom. All coefficients’ p-value are less than 0.05 which indicates that ma1, ma2 and constant are significant.
+Then we would focus on the diagnostics.
+
+For the diagnostic plots for ARIMA(1, 1, 0) and ARIMA(0, 1, 2). Both the standardized residuals have no obvious patterns. There are few outliers. The ACF Residuals plots show a significant spike in both cases. The residuals’ normal Q-Q plots show that the assumption of normality is reasonable enough, except for some possible outliers. The p-values for Ljung-Box statistics of ARIMA(1,1,0) are all closed to or below the reasonable significant level but the initial several p-values for Ljung-Box of ARIMA(0,1,2) are above 0.05. Hence, we are proposing the ARIMA(0,1,2) model for prediction.
+ARIMA(1,1,0):
+$AIC: -6.625634 $AICc: -6.625485 $BIC: -6.587284
+ARIMA(0,1,2):
+$AIC: -6.636309 $AICc: -6.636001 $BIC: -6.585176
+Meanwhile, the ARIMA(0, 1, 2) model has smaller AIC, AICc, but a larger BIC. Considering the ARIMA(0, 1, 2) model performs better with diagnostics, we select the ARIMA(0, 1, 2) model to predict the future 10 quarters.
+
+```{r}
+forecast <- sarima.for(diff(log(gdp)),10,0,0,2)
+plot(gdpgr,xlab="year",ylab="GDP growth rate", main="Prediction for the future 10 quarters' GDP growth rate")
+lines(forecast$pred,col="red")
+lines(forecast$pred-1.96*forecast$se,col="green")
+lines(forecast$pred+1.96*forecast$se,col="green")
+```
+
+From Figure 5, the future GDP growth rate is around 1% and the 95% confidence interval is around (-1%, 3%). But from the U.S. Department of Commerce, in 2020, U.S. GDP decreased by 3.5% which is out of our 95% confidence interval. (https://www.bea.gov/news/2021/gross-domestic-product-4th-quarter-and-year-2020-advance-estimate)
+Finally, we would do a spectrum analysis.
+
+
+```{r}
+gdp.per = mvspec(gdpgr,log = "no")
+gdp.per$details
+df <- as.data.frame(gdp.per$details)
+df
+```
+
+
+```{r}
+U = qchisq(.025,2) 
+L = qchisq(.975,2)
+spec <- df %>% arrange(desc(spectrum)) %>% slice(1:3)
+spec
+```
+
+After we sort and subset the data, we get the first three predominant periods. Then we calculate the upper and lower bounds, and those two columns would be combined in the dataset.
+
+```{r}
+spec%>%
+  mutate(Upper= 2*spec$spectrum/U)%>%mutate(Lower = 2*spec$spectrum/L)
+```
+
+From Figure 7, the dominant periods are 2.1818, 18 and 12. Those 95% confidence intervals are too wide to establish the significance of the peak.
+
+Discussion
+
+
+Since this is a quarterly time series, there seems to be some seasonal trend.  So, an ARIMA model may not be the best fitted model and SARIMA models may have been a better one. Meanwhile, there are some outliers at the tails of the Q-Q plot which limiting the model prediction. So, SARIMA models may have been a better fit for this data. Moreover, in the prediction of the future 10 quarters, the estimated 95% interval of 2020 GDP growth rate is (-0.01, 0.03) but the GDP growth rate of 2020 in real world is -0.035. It is due to the current COVID-19 pandemic which is one of the most significant black swan events in history. There is no model can predict that.
+
+
